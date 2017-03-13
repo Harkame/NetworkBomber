@@ -16,7 +16,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
-#include "network_manager.h"
+#include "network_bomber.h"
 
 #define TAILLE_MESSAGE 255
 #define PORT           6666
@@ -26,8 +26,6 @@ int*       g_sockets;
 pthread_t* g_threads;
 
 void(*g_pointer_handler)(void* p_ip);
-
-int g_lock = 0;
 
 int g_port = 0;
 
@@ -181,7 +179,6 @@ void init(int argc, char** argv)
     {"ports", 0, 0, 0},
     {"range", 0, 0, 0},
     {"help", 0, 0, 0},
-    {"lock", 0, 0, 0},
     {"port_min", 1, 0, 0},
     {"port_max", 1, 0, 0},
     {NULL, 0, NULL, 0}
@@ -205,8 +202,6 @@ void init(int argc, char** argv)
           g_port_max = atoi(optarg);
         else if(strcmp("help", long_options[option_index].name) == 0)
           help();
-        else if(strcmp("lock", long_options[option_index].name) == 0)
-          g_lock = 1;
         else
         {
 
