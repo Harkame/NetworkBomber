@@ -15,9 +15,11 @@
 #include <pthread.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <ctype.h>
 
 #include "network_bomber.h"
 
+#define DEFAULT_MESSAGE "YOLO"
 #define DEFAULT_SLEEP 5
 #define DEFAULT_PORT_MIN 0
 #define DEFAULT_PORT_MAX 100000
@@ -25,33 +27,30 @@
 
 #define TAILLE_MESSAGE 255
 #define PORT           6666
-#define IP             "10.6.7."
 
 int*       g_sockets;
 pthread_t* g_threads;
 
 void(*g_pointer_handler)(void* p_ip);
 
-int g_port = 0;
-
 int g_trace = 0;
 
+int g_port = 0; //For TCP
 int g_port_min = DEFAULT_PORT_MIN;
 int g_port_max = DEFAULT_PORT_MAX;
 
 int g_sleep    = DEFAULT_SLEEP;
 
 int g_count_ip = 1;
-
 char g_ip     [15] = DEFAULT_IP;
 char g_ip_min [15] = DEFAULT_IP;
 char g_ip_max [15] = DEFAULT_IP;
 
 char g_type   [15] = {'u', 'd', 'p', '\0'};
 
-void* g_f;
+char** g_all_ip;
 
-char g_message[255];
+char g_message[255] = DEFAULT_MESSAGE;
 
 void handler_udp(void* p_ip)
 {
@@ -93,9 +92,8 @@ void handler_udp(void* p_ip)
         //exit(EXIT_FAILURE);
       }
 
-      strcpy(buffer, "\033cYolo.\n");
-
-      if(sendto(d_socket, buffer, strlen(buffer)
+      //strcpy(g_message, "\x1B");
+      if(sendto(d_socket, g_message, strlen(g_message)
       , 0,
       (struct sockaddr*) &sockaddr_in_client, sizeof sockaddr_in_client) < 0)
       {
@@ -161,7 +159,19 @@ void handler_tcp(void* ip)
         }
       }
     }
+}
 
+void remove_LF(char* p_string)
+{
+    char *t_string = p_string;
+
+    while(*p_string != '\0')
+        if(*p_string != '\t' && *p_string != '\n')
+            *t_string++ = *p_string++;
+				else
+            ++p_string;
+
+    *t_string = '\0';
 }
 
 void foo()
@@ -193,8 +203,10 @@ void init(int argc, char** argv)
     {"ports", 0, 0, 0},
     {"range", 0, 0, 0},
     {"help", 0, 0, 0},
-    {"port_min", 1, 0, 0},
-    {"port_max", 1, 0, 0},
+    {"pmin", 1, 0, 0},
+    {"pmax", 1, 0, 0},
+    {"ipmin", 1, 0, 0},
+    {"ipmax", 1, 0, 0},
     {NULL, 0, NULL, 0}
   };
 
@@ -215,7 +227,10 @@ void init(int argc, char** argv)
         else if(strcasecmp("pmax", long_options[option_index].name) == 0)
           g_port_max = atoi(optarg);
         else if(strcasecmp("ipmin", long_options[option_index].name) == 0)
+        {
+          puts("Yolo");
           strcpy(g_ip_min, optarg);
+        }
         else if(strcasecmp("ipmax", long_options[option_index].name) == 0)
           strcpy(g_ip_max, optarg);
         else if(strcasecmp("help", long_options[option_index].name) == 0)
@@ -243,7 +258,9 @@ void init(int argc, char** argv)
           g_pointer_handler = handler_tcp;
       break;
       case 'm':
+      {
         strcpy(g_message, optarg);
+      }
       break;
       default:
         help();
@@ -269,7 +286,7 @@ void help()
 
 
 
-uint32_t getDecimalValueOfIPV4_String(const char* ipAddress)
+uint32_t ip4_to_int(const char* ipAddress)
 {
     uint8_t ipbytes[4]={};
     int i =0;
@@ -293,34 +310,65 @@ uint32_t getDecimalValueOfIPV4_String(const char* ipAddress)
     return a+b+c+d;
 }
 
+void print_ip(uint32_t ip, int p_index)
+{
+    unsigned char t_bytes[4];
 
+    t_bytes[0] = ip         & 0xFF;
+    t_bytes[1] = (ip >> 8)  & 0xFF;
+    t_bytes[2] = (ip >> 16) & 0xFF;
+    t_bytes[3] = (ip >> 24) & 0xFF;
+
+    int  t_int = 0;
+    char t_ip[15];
+    char temp[3];
+
+    memset(t_ip, '0', strlen(t_ip));
+
+    t_int = t_bytes[3];
+    sprintf(temp, "%d", t_int);
+    strcpy(t_ip, temp);
+    strcat(t_ip, ".");
+
+    t_int = t_bytes[2];
+    sprintf(temp, "%d", t_int);
+    strcat(t_ip, temp);
+    strcat(t_ip, ".");
+
+    t_int = t_bytes[1];
+    sprintf(temp, "%d", t_int);
+    strcat(t_ip, temp);
+    strcat(t_ip, ".");
+
+    t_int = t_bytes[0];
+    sprintf(temp, "%d", t_int);
+    strcat(t_ip, temp);
+
+    printf("IP : %s\n", t_ip);
+
+    strcpy(g_ip[p_index], t_ip);
+}
 
 void cut()
 {
-   const char s[1] = ".";
-   char* token;
+   uint32_t t_ip_min = ip4_to_int(g_ip_min);
+   uint32_t t_ip_max = ip4_to_int(g_ip_max);
 
-   /* get the first token */
-   token = strtok(g_ip_min, s);
+   g_count_ip = t_ip_max - t_ip_min;
 
-   /* walk through other tokens */
-   while(token != NULL )
-   {
-      printf( " %s\n", token );
+   g_all_ip      = malloc(g_count_ip);
+   for(int index = 0; index < g_count_ip; index++)
+    g_all_ip[index] = malloc(15 * sizeof(char));
 
-      token = strtok(NULL, s);
-   }
+   g_threads = malloc(g_count_ip * sizeof(pthread_t));
 
-   uint32_t t_ip_min = getDecimalValueOfIPV4_String(g_ip_min);
-
-   uint32_t t_ip_max = getDecimalValueOfIPV4_String(g_ip_max);
-
-   g_threads = malloc((t_ip_min - t_ip_max) * sizeof(pthread_t));
+   for(int index = 0; index < g_count_ip; index++)
+    print_ip(t_ip_min + index, index);
 }
 
 int main(int argc , char** argv)
 {
+  init(argc, argv);
   cut();
-//  init(argc, argv);
-//  foo();
+  //foo();
 }
