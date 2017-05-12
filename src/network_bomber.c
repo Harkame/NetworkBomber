@@ -19,13 +19,17 @@
 
 #include "network_bomber.h"
 
-#define DEFAULT_MESSAGE "YOLO"
-#define DEFAULT_SLEEP 5
-#define DEFAULT_PORT_MIN 0
+#define MESSAGE_ESCAPE "\033c"
+
+#define DEFAULT_TYPE "udp"
+
+#define DEFAULT_MESSAGE "TEST"
+#define DEFAULT_SLEEP    5
+#define DEFAULT_PORT_MIN 1000
 #define DEFAULT_PORT_MAX 100000
 #define DEFAULT_IP       "127.0.0.1"
 
-#define TAILLE_MESSAGE 255
+#define BUFFER_SIZE    255
 #define PORT           6666
 
 int*       g_sockets;
@@ -33,9 +37,9 @@ pthread_t* g_threads;
 
 void(*g_pointer_handler)(void* p_ip);
 
-int g_trace = 0;
+int g_trace = -1;
 
-int g_port = 0; //For TCP
+int g_port = -1;
 int g_port_min = DEFAULT_PORT_MIN;
 int g_port_max = DEFAULT_PORT_MAX;
 
@@ -46,7 +50,7 @@ char g_ip     [15] = DEFAULT_IP;
 char g_ip_min [15] = DEFAULT_IP;
 char g_ip_max [15] = DEFAULT_IP;
 
-char g_type   [15] = {'u', 'd', 'p', '\0'};
+char g_type   [15] = DEFAULT_TYPE;
 
 char** g_all_ip;
 
@@ -60,7 +64,7 @@ void handler_udp(void* p_ip)
   int a = 12;
   struct sockaddr_in sockaddr_in_client;
 
-  char buffer[TAILLE_MESSAGE];
+  char buffer[BUFFER_SIZE];
 
   d_socket = socket(AF_INET, SOCK_DGRAM , 0);
 
@@ -88,11 +92,10 @@ void handler_udp(void* p_ip)
 
       if(d_socket == -1)
       {
-        //perror("socket ");
-        //exit(EXIT_FAILURE);
+        perror("socket ");
+        exit(EXIT_FAILURE);
       }
 
-      //strcpy(g_message, "\x1B");
       if(sendto(d_socket, g_message, strlen(g_message)
       , 0,
       (struct sockaddr*) &sockaddr_in_client, sizeof sockaddr_in_client) < 0)
@@ -112,7 +115,7 @@ void handler_tcp(void* ip)
   int a = 12;
   struct sockaddr_in sockaddr_in_client;
 
-  char buffer[TAILLE_MESSAGE];
+  char buffer[BUFFER_SIZE];
 
   d_socket = socket(AF_INET, SOCK_STREAM , 0);
 
@@ -213,7 +216,7 @@ void init(int argc, char** argv)
   int option_index = 0;
   char* buffer;
 
-  while ((c = getopt_long(argc, argv, "m:t:i:s:",
+  while ((c = getopt_long(argc, argv, "p:m:t:i:s:",
   long_options, &option_index)) != -1)
   {
     int this_option_optind = optind ? optind : 1;
@@ -227,10 +230,7 @@ void init(int argc, char** argv)
         else if(strcasecmp("pmax", long_options[option_index].name) == 0)
           g_port_max = atoi(optarg);
         else if(strcasecmp("ipmin", long_options[option_index].name) == 0)
-        {
-          puts("Yolo");
           strcpy(g_ip_min, optarg);
-        }
         else if(strcasecmp("ipmax", long_options[option_index].name) == 0)
           strcpy(g_ip_max, optarg);
         else if(strcasecmp("help", long_options[option_index].name) == 0)
@@ -258,9 +258,16 @@ void init(int argc, char** argv)
           g_pointer_handler = handler_tcp;
       break;
       case 'm':
-      {
-        strcpy(g_message, optarg);
-      }
+        if(strcasecmp(optarg, "\\033c") == 0)
+          strcpy(g_message, MESSAGE_ESCAPE);
+        else
+          strcpy(g_message, optarg);
+      break;
+      case 'p':
+        g_port = atoi(optarg);
+
+        g_port_min = g_port;
+        g_port_max = g_port;
       break;
       default:
         help();
@@ -276,9 +283,9 @@ void help()
   fprintf(stdout, "-t type : udp (default) / tcp\n");
   fprintf(stdout, "-s sleep : Time to sleep between each message (5 default)\n");
   fprintf(stdout, "If you don't know the port to bomb\n");
-  fprintf(stdout, "\t--pmin port_minimum : port minimum to scan (0 default)\n");
-  fprintf(stdout, "\t--pmax port_maximum: port_maximum to scan  (100 000 default)\n");
-  fprintf(stdout, "--trace : \n");
+  fprintf(stdout, "\t--pmin port_minimum : port minimum to bomb (0 default)\n");
+  fprintf(stdout, "\t--pmax port_maximum : port_maximum to bomb (100 000 default)\n");
+  fprintf(stdout, "--trace : Print each IP and port bombed\n");
   fprintf(stdout, "\n");
 
   exit(1);
@@ -369,6 +376,6 @@ void cut()
 int main(int argc , char** argv)
 {
   init(argc, argv);
-  cut();
-  //foo();
+  //cut();
+  foo();
 }
